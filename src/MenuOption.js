@@ -7,8 +7,7 @@ import { makeTouchable } from './helpers';
 export default class MenuOption extends Component {
 
   _onSelect() {
-    const { value } = this.props;
-    const onSelect = this.props.onSelect || this._getMenusOnSelect()
+    const { value, onSelect } = this.props;
     const shouldClose = onSelect(value) !== false;
     debug('select option', value, shouldClose);
     if (shouldClose) {
@@ -16,22 +15,8 @@ export default class MenuOption extends Component {
     }
   }
 
-  _getMenusOnSelect() {
-    const menu = this.context.menuActions._getOpenedMenu();
-    return menu.instance.props.onSelect;
-  }
-
-  _getCustomStyles() {
-    const { optionsCustomStyles } = this.context.menuActions._getOpenedMenu();
-    return {
-      ...optionsCustomStyles,
-      ...this.props.customStyles,
-    }
-  }
-
   render() {
-    const { text, disabled, disableTouchable, children, style } = this.props;
-    const customStyles = this._getCustomStyles()
+    const { text, disabled, children, style, customStyles } = this.props;
     if (text && React.Children.count(children) > 0) {
       console.warn("MenuOption: Please don't use text property together with explicit children. Children are ignored.");
     }
@@ -43,32 +28,23 @@ export default class MenuOption extends Component {
         </View>
       );
     }
-    const rendered = (
-      <View style={[defaultStyles.option, customStyles.optionWrapper, style]}>
-        {text ? <Text style={customStyles.optionText}>{text}</Text> : children}
-      </View>
+    const { Touchable, defaultTouchableProps } = makeTouchable(customStyles.OptionTouchableComponent);
+    return (
+      <Touchable
+        onPress={() => this._onSelect()}
+        {...defaultTouchableProps}
+        {...customStyles.optionTouchable}
+      >
+        <View style={[defaultStyles.option, customStyles.optionWrapper, style]}>
+          {text ? <Text style={customStyles.optionText}>{text}</Text> : children}
+        </View>
+      </Touchable>
     );
-    if (disableTouchable) {
-      return rendered;
-    }
-    else {
-      const { Touchable, defaultTouchableProps } = makeTouchable(customStyles.OptionTouchableComponent);
-      return (
-        <Touchable
-          onPress={() => this._onSelect()}
-          {...defaultTouchableProps}
-          {...customStyles.optionTouchable}
-        >
-          {rendered}
-        </Touchable>
-      );
-    }
   }
 }
 
 MenuOption.propTypes = {
   disabled: PropTypes.bool,
-  disableTouchable: PropTypes.bool,
   onSelect: PropTypes.func,
   text: PropTypes.string,
   value: PropTypes.any,
@@ -77,7 +53,6 @@ MenuOption.propTypes = {
 
 MenuOption.defaultProps = {
   disabled: false,
-  disableTouchable: false,
   customStyles: {},
 };
 
@@ -89,6 +64,7 @@ const defaultStyles = StyleSheet.create({
   option: {
     padding: 5,
     backgroundColor: 'transparent',
+    flex: 1,
   },
   optionTextDisabled: {
     color: '#ccc',

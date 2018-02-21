@@ -1,5 +1,5 @@
 import React from 'react';
-import { I18nManager, Animated, Easing, StyleSheet } from 'react-native';
+import { Animated, Easing, StyleSheet, Dimensions } from 'react-native';
 import { OPEN_ANIM_DURATION, CLOSE_ANIM_DURATION } from '../constants';
 
 const axisPosition = (oDim, wDim, tPos, tDim) => {
@@ -29,14 +29,13 @@ const axisPosition = (oDim, wDim, tPos, tDim) => {
   return pos;
 };
 
-export const computePosition = ({ windowLayout, triggerLayout, optionsLayout }, isRTL) => {
+export const computePosition = ({ windowLayout, triggerLayout, optionsLayout }) => {
   const { x: wX, y: wY, width: wWidth, height: wHeight } = windowLayout;
   const { x: tX, y: tY, height: tHeight, width: tWidth } = triggerLayout;
   const { height: oHeight, width: oWidth } = optionsLayout;
   const top = axisPosition(oHeight, wHeight, tY - wY, tHeight);
   const left = axisPosition(oWidth, wWidth, tX - wX, tWidth);
-  const start = isRTL ? 'right' : 'left';
-  return { top, [start]: left };
+  return { top, left };
 };
 
 export default class ContextMenu extends React.Component {
@@ -53,7 +52,6 @@ export default class ContextMenu extends React.Component {
       duration: OPEN_ANIM_DURATION,
       toValue: 1,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true
     }).start();
   }
 
@@ -63,7 +61,6 @@ export default class ContextMenu extends React.Component {
         duration: CLOSE_ANIM_DURATION,
         toValue: 0,
         easing: Easing.in(Easing.cubic),
-        useNativeDriver: true
       }).start(resolve);
     });
   }
@@ -74,7 +71,7 @@ export default class ContextMenu extends React.Component {
       transform: [ { scale: this.state.scaleAnim } ],
       opacity: this.state.scaleAnim,
     };
-    const position = computePosition(layouts, I18nManager.isRTL);
+    const position = computePosition(layouts);
     return (
       <Animated.View {...other} style={[styles.options, style, animation, position]}>
         {children}
@@ -90,9 +87,11 @@ ContextMenu.computePosition = computePosition;
 export const styles = StyleSheet.create({
   options: {
     position: 'absolute',
-    borderRadius: 2,
+    borderRadius: 5,
     backgroundColor: 'white',
     width: 200,
+
+
 
     // Shadow only works on iOS.
     shadowColor: 'black',

@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { View, BackHandler } from 'react-native';
 import makeMenuRegistry from './menuRegistry';
-import MenuPlaceholder from './MenuPlaceholder';
+import Backdrop from './Backdrop';
 import { measure } from './helpers';
 import { debug } from './logger.js';
 import MenuOutside from './renderers/MenuOutside';
@@ -14,12 +14,12 @@ const layoutsEqual = (a, b) => (
 
 const isFunctional = Component => !Component.prototype.render;
 
-export default class MenuProvider extends Component {
+export default class MenuContext extends Component {
 
   constructor(props) {
     super(props);
+    this.state = {};
     this._menuRegistry = makeMenuRegistry();
-    this._isMenuClosing = false;
   }
 
   getChildContext() {
@@ -28,8 +28,7 @@ export default class MenuProvider extends Component {
       closeMenu: () => this.closeMenu(),
       toggleMenu: name => this.toggleMenu(name),
       isMenuOpen: () => this.isMenuOpen(),
-      _getOpenedMenu: () => this._getOpenedMenu(),
-      _notify: force => this._notify(force),
+      _notify: () => this._notify()
     };
     const menuRegistry = this._menuRegistry;
     return { menuRegistry, menuActions };
@@ -47,7 +46,7 @@ export default class MenuProvider extends Component {
       }
     }
 
-    // Custom handler called with MenuProvider instance id function is passed
+    // Custom handler called with MenuContext instance id function is passed
     if (typeof backHandler === 'function') {
       return backHandler(this);
     }
@@ -59,25 +58,21 @@ export default class MenuProvider extends Component {
     if (BackHandler) {
       BackHandler.addEventListener('hardwareBackPress', this._handleBackButton);
     } else {
-      const { backHandler } = this.props;
+      const {backHandler} = this.props;
       if (backHandler === true || typeof backHandler === 'function') {
         console.warn('backHandler prop cannot be used if BackHandler is not present (RN >= 0.44 required)');
       }
     }
-    if (this.props.customStyles.menuContextWrapper) {
-      console.warn('menuContextWrapper custom style is deprecated and it might be removed in future releases, use menuProviderWrapper instead.');
-    }
   }
 
   componentWillUnmount() {
-    debug('unmounting menu provider')
     if (BackHandler) {
       BackHandler.removeEventListener('hardwareBackPress', this._handleBackButton);
     }
   }
 
   isMenuOpen() {
-    return !!this._getOpenedMenu();
+    return !!this.state.openedMenu;
   }
 
   openMenu(name) {
@@ -116,15 +111,7 @@ export default class MenuProvider extends Component {
       && this.optionsRef.close()) || Promise.resolve();
     const hideBackdrop = this.backdropRef && this.backdropRef.close();
     this._invalidateTriggerLayouts();
-    this._isMenuClosing = true;
-    return Promise.all([hideMenu, hideBackdrop])
-      .then(() => {
-        this._isMenuClosing = false;
-      })
-      .catch(err => {
-        this._isMenuClosing = false;
-        throw err;
-      })
+    return Promise.all([hideMenu, hideBackdrop]);
   }
 
   toggleMenu(name) {
@@ -164,11 +151,7 @@ export default class MenuProvider extends Component {
       }
     }
     return beforeSetState().then(() => {
-      if (!this._placeholderRef) {
-        debug('setState ignored - maybe the context was unmounted')
-        return
-      }
-      this._placeholderRef.setState({ openedMenuName: this.openedMenu && this.openedMenu.name }, afterSetState);
+      this.setState({ openedMenu: this.openedMenu }, afterSetState);
       debug('notify ended');
     });
   }
@@ -194,22 +177,23 @@ export default class MenuProvider extends Component {
 
   render() {
     const { style, customStyles } = this.props;
+    const shouldRenderMenu = this.isMenuOpen() && this._isInitialized();
     debug('render menu', this.isMenuOpen(), this._ownLayout);
     return (
-      <View style={{flex:1}} onLayout={this._onLayout}>
-        <View style={[
-          {flex:1},
-          customStyles.menuContextWrapper,
-          customStyles.menuProviderWrapper,
-          style,
-        ]}>
+      <View style={{flex:1}} onLayout={e => this._onLayout(e)}>
+        <View style={[{flex:1}, customStyles.menuContextWrapper, style]}>
           { this.props.children }
         </View>
-        <MenuPlaceholder
-          ctx={this}
-          backdropStyles={customStyles.backdrop}
-          ref={this._onPlaceholderRef}
+        {shouldRenderMenu &&
+          <Backdrop
+            onPress={() => this._onBackdropPress()}
+            style={customStyles.backdrop}
+            ref={this.onBackdropRef}
           />
+        }
+        {shouldRenderMenu &&
+          this._makeOptions(this.state.openedMenu)
+        }
       </View>
     );
   }
@@ -222,20 +206,9 @@ export default class MenuProvider extends Component {
     this.optionsRef = r;
   }
 
-  _onPlaceholderRef = r => this._placeholderRef = r;
-
-  _getOpenedMenu() {
-    const name = this._placeholderRef && this._placeholderRef.state.openedMenuName;
-    return name ? this._menuRegistry.getMenu(name) : undefined;
-  }
-
-  _onBackdropPress = () => {
+  _onBackdropPress() {
     debug('on backdrop press');
-    const menu = this._getOpenedMenu();
-    if (menu) {
-      menu.instance.props.onBackdropPress();
-    }
-    
+    this.state.openedMenu.instance.props.onBackdropPress();
     this.closeMenu();
   }
 
@@ -249,7 +222,6 @@ export default class MenuProvider extends Component {
     measure(trigger).then(triggerLayout => {
       debug('got trigger measurements', triggerLayout);
       this._menuRegistry.updateLayoutInfo(menu.name, { triggerLayout });
-      this.backdropRef && this.backdropRef.open()
       this._notify();
     });
   }
@@ -262,10 +234,9 @@ export default class MenuProvider extends Component {
     this._notify();
   }
 
-  _makeOptions() {
-    const { instance, triggerLayout, optionsLayout } = this._getOpenedMenu();
+  _makeOptions({ instance, triggerLayout, optionsLayout }) {
     const options = instance._getOptions();
-    const { renderer, rendererProps } = instance.props;
+    const { renderer } = instance.props;
     const windowLayout = this._ownLayout;
     const { optionsContainerStyle, renderOptionsContainer, customStyles } = options.props;
     const optionsRenderer = renderOptionsContainer || defaultOptionsContainerRenderer;
@@ -273,7 +244,7 @@ export default class MenuProvider extends Component {
     const onLayout = e => this._onOptionsLayout(e, instance.getName(), isOutside);
     const style = [optionsContainerStyle, customStyles.optionsContainer];
     const layouts = { windowLayout, triggerLayout, optionsLayout };
-    const props = { ...rendererProps, style, onLayout, layouts };
+    const props = { style, onLayout, layouts };
     const optionsType = isOutside ? MenuOutside : renderer;
     if (!isFunctional(optionsType)) {
       props.ref = this.onOptionsRef;
@@ -281,7 +252,7 @@ export default class MenuProvider extends Component {
     return React.createElement(optionsType, props, optionsRenderer(options));
   }
 
-  _onLayout = ({ nativeEvent: { layout } }) => {
+  _onLayout({ nativeEvent: { layout } }) {
     if (layoutsEqual(this._ownLayout, layout)) {
       return;
     }
@@ -290,7 +261,7 @@ export default class MenuProvider extends Component {
     if (!this.isMenuOpen()) {
       return;
     }
-    const { instance } = this._getOpenedMenu();
+    const { instance } = this.state.openedMenu;
     const trigger = instance._getTrigger();
     measure(trigger).then(triggerLayout => {
       debug('got trigger measurements after context layout change', triggerLayout);
@@ -302,17 +273,17 @@ export default class MenuProvider extends Component {
 
 }
 
-MenuProvider.propTypes = {
+MenuContext.propTypes = {
   customStyles: PropTypes.object,
   backHandler: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
 }
 
-MenuProvider.defaultProps = {
+MenuContext.defaultProps = {
   customStyles: {},
   backHandler: false,
 };
 
-MenuProvider.childContextTypes = {
+MenuContext.childContextTypes = {
   menuRegistry: PropTypes.object,
   menuActions: PropTypes.object,
 };

@@ -5,18 +5,15 @@ Extensible popup menu component for React Native for Android, iOS and (unofficia
 
 Features:
 * Simple to use popup/context menu
-* Multiple modes: animated, not animated, slide in from bottom or popover
+* Multiple modes: animated, not animated or slide in from bottom
 * By default opening and closing animations
 * Optional back button handling
 * Easy styling
 * Customizable on various levels - menu options, positioning, animations
 * Can work as controlled as well as uncontrolled component
 * Different lifecycle hooks
-* RTL layout support
 
-| Context Menu, Slide-in Menu | Popover |
-|---|---|
-|![Popup menu demo](./android.demo.gif)|![Popup menu demo](./android.demo-popover.gif)|
+![Popup menu demo](./android.demo.gif)
 
 ## Installation
 
@@ -26,18 +23,18 @@ npm install react-native-popup-menu --save
 If you are using older RN versions check our compatibility table.
 
 ## Basic Usage
-Wrap your application inside `MenuProvider` and then simply use `Menu` component where you need it. Below you can find a simple example.
+Wrap your application inside `MenuContext` and then simply use `Menu` component where you need it. Below you can find a simple example.
 
 For more detailed documentation check [API](./doc/api.md).
 
 ```js
 // your entry point
-import { MenuProvider } from 'react-native-popup-menu';
+import { MenuContext } from 'react-native-popup-menu';
 
 export const App = () => (
-  <MenuProvider>
+  <MenuContext>
     <YourApp />
-  </MenuProvider>
+  </MenuContext>
 );
 
 // somewhere in your app
@@ -80,6 +77,5 @@ We keep compatibility on best effort basis.
 
 | popup-menu version | min RN version |
 | ------------------ | -------------- |
-| 0.9                | 0.40           |
 | 0.8                | 0.38           |
 | 0.7                | 0.18           |
